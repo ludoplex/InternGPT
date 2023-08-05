@@ -19,7 +19,7 @@ class GroupRandomCrop(object):
         w, h = img_group[0].size
         th, tw = self.size
 
-        out_images = list()
+        out_images = []
 
         x1 = random.randint(0, w - tw)
         y1 = random.randint(0, h - th)
@@ -47,9 +47,9 @@ class MultiGroupRandomCrop(object):
         w, h = img_group[0].size
         th, tw = self.size
 
-        out_images = list()
+        out_images = []
 
-        for i in range(self.groups):
+        for _ in range(self.groups):
             x1 = random.randint(0, w - tw)
             y1 = random.randint(0, h - th)
 
@@ -80,15 +80,14 @@ class GroupRandomHorizontalFlip(object):
 
     def __call__(self, img_group, is_flow=False):
         v = random.random()
-        if v < 0.5:
-            ret = [img.transpose(Image.FLIP_LEFT_RIGHT) for img in img_group]
-            if self.is_flow:
-                for i in range(0, len(ret), 2):
-                    # invert flow pixel values when flipping
-                    ret[i] = ImageOps.invert(ret[i])
-            return ret
-        else:
+        if v >= 0.5:
             return img_group
+        ret = [img.transpose(Image.FLIP_LEFT_RIGHT) for img in img_group]
+        if self.is_flow:
+            for i in range(0, len(ret), 2):
+                # invert flow pixel values when flipping
+                ret[i] = ImageOps.invert(ret[i])
+        return ret
 
 
 class GroupNormalize(object):
@@ -128,10 +127,7 @@ class GroupOverSample(object):
         self.crop_size = crop_size if not isinstance(
             crop_size, int) else (crop_size, crop_size)
 
-        if scale_size is not None:
-            self.scale_worker = GroupScale(scale_size)
-        else:
-            self.scale_worker = None
+        self.scale_worker = GroupScale(scale_size) if scale_size is not None else None
         self.flip = flip
 
     def __call__(self, img_group):
@@ -144,10 +140,10 @@ class GroupOverSample(object):
 
         offsets = GroupMultiScaleCrop.fill_fix_offset(
             False, image_w, image_h, crop_w, crop_h)
-        oversample_group = list()
+        oversample_group = []
         for o_w, o_h in offsets:
-            normal_group = list()
-            flip_group = list()
+            normal_group = []
+            flip_group = []
             for i, img in enumerate(img_group):
                 crop = img.crop((o_w, o_h, o_w + crop_w, o_h + crop_h))
                 normal_group.append(crop)
@@ -169,10 +165,7 @@ class GroupFullResSample(object):
         self.crop_size = crop_size if not isinstance(
             crop_size, int) else (crop_size, crop_size)
 
-        if scale_size is not None:
-            self.scale_worker = GroupScale(scale_size)
-        else:
-            self.scale_worker = None
+        self.scale_worker = GroupScale(scale_size) if scale_size is not None else None
         self.flip = flip
 
     def __call__(self, img_group):
@@ -186,15 +179,15 @@ class GroupFullResSample(object):
         w_step = (image_w - crop_w) // 4
         h_step = (image_h - crop_h) // 4
 
-        offsets = list()
-        offsets.append((0 * w_step, 2 * h_step))  # left
-        offsets.append((4 * w_step, 2 * h_step))  # right
-        offsets.append((2 * w_step, 2 * h_step))  # center
-
-        oversample_group = list()
+        offsets = [
+            (0 * w_step, 2 * h_step),
+            (4 * w_step, 2 * h_step),
+            (2 * w_step, 2 * h_step),
+        ]
+        oversample_group = []
         for o_w, o_h in offsets:
-            normal_group = list()
-            flip_group = list()
+            normal_group = []
+            flip_group = []
             for i, img in enumerate(img_group):
                 crop = img.crop((o_w, o_h, o_w + crop_w, o_h + crop_h))
                 normal_group.append(crop)
@@ -236,9 +229,12 @@ class GroupMultiScaleCrop(object):
                  crop_w,
                  offset_h +
                  crop_h)) for img in img_group]
-        ret_img_group = [img.resize((self.input_size[0], self.input_size[1]), self.interpolation)
-                         for img in crop_img_group]
-        return ret_img_group
+        return [
+            img.resize(
+                (self.input_size[0], self.input_size[1]), self.interpolation
+            )
+            for img in crop_img_group
+        ]
 
     def _sample_crop_size(self, im_size):
         image_w, image_h = im_size[0], im_size[1]
@@ -255,10 +251,11 @@ class GroupMultiScaleCrop(object):
 
         pairs = []
         for i, h in enumerate(crop_h):
-            for j, w in enumerate(crop_w):
-                if abs(i - j) <= self.max_distort:
-                    pairs.append((w, h))
-
+            pairs.extend(
+                (w, h)
+                for j, w in enumerate(crop_w)
+                if abs(i - j) <= self.max_distort
+            )
         crop_pair = random.choice(pairs)
         if not self.fix_crop:
             w_offset = random.randint(0, image_w - crop_pair[0])
@@ -279,13 +276,13 @@ class GroupMultiScaleCrop(object):
         w_step = (image_w - crop_w) // 4
         h_step = (image_h - crop_h) // 4
 
-        ret = list()
-        ret.append((0, 0))  # upper left
-        ret.append((4 * w_step, 0))  # upper right
-        ret.append((0, 4 * h_step))  # lower left
-        ret.append((4 * w_step, 4 * h_step))  # lower right
-        ret.append((2 * w_step, 2 * h_step))  # center
-
+        ret = [
+            (0, 0),
+            (4 * w_step, 0),
+            (0, 4 * h_step),
+            (4 * w_step, 4 * h_step),
+            (2 * w_step, 2 * h_step),
+        ]
         if more_fix_crop:
             ret.append((0, 2 * h_step))  # center left
             ret.append((4 * w_step, 2 * h_step))  # center right
@@ -335,7 +332,7 @@ class GroupRandomSizedCrop(object):
             y1 = 0
 
         if found:
-            out_group = list()
+            out_group = []
             for img in img_group:
                 img = img.crop((x1, y1, x1 + w, y1 + h))
                 assert(img.size == (w, h))

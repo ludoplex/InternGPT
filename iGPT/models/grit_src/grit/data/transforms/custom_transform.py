@@ -52,12 +52,6 @@ class EfficientDetResizeCropTransform(Transform):
             interp_method = interp if interp is not None else self.interp
             pil_image = pil_image.resize((self.scaled_w, self.scaled_h), interp_method)
             ret = np.asarray(pil_image)
-            right = min(self.scaled_w, self.offset_x + self.target_size[1])
-            lower = min(self.scaled_h, self.offset_y + self.target_size[0])
-            if len(ret.shape) <= 3:
-                ret = ret[self.offset_y: lower, self.offset_x: right]
-            else:
-                ret = ret[..., self.offset_y: lower, self.offset_x: right, :]
         else:
             # PIL only supports uint8
             img = torch.from_numpy(img)
@@ -69,12 +63,12 @@ class EfficientDetResizeCropTransform(Transform):
             img = F.interpolate(img, (self.scaled_h, self.scaled_w), mode=mode, align_corners=False)
             shape[:2] = (self.scaled_h, self.scaled_w)
             ret = img.permute(2, 3, 0, 1).view(shape).numpy()  # nchw -> hw(c)
-            right = min(self.scaled_w, self.offset_x + self.target_size[1])
-            lower = min(self.scaled_h, self.offset_y + self.target_size[0])
-            if len(ret.shape) <= 3:
-                ret = ret[self.offset_y: lower, self.offset_x: right]
-            else:
-                ret = ret[..., self.offset_y: lower, self.offset_x: right, :]
+        right = min(self.scaled_w, self.offset_x + self.target_size[1])
+        lower = min(self.scaled_h, self.offset_y + self.target_size[0])
+        if len(ret.shape) <= 3:
+            ret = ret[self.offset_y: lower, self.offset_x: right]
+        else:
+            ret = ret[..., self.offset_y: lower, self.offset_x: right, :]
         return ret
 
 
@@ -111,5 +105,4 @@ class EfficientDetResizeCropTransform(Transform):
         coords = self.inverse_apply_coords(coords).reshape((-1, 4, 2))
         minxy = coords.min(axis=1)
         maxxy = coords.max(axis=1)
-        trans_boxes = np.concatenate((minxy, maxxy), axis=1)
-        return trans_boxes
+        return np.concatenate((minxy, maxxy), axis=1)

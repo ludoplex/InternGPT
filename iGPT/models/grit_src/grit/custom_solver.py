@@ -49,7 +49,7 @@ def build_custom_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.
 
         return FullModelGradientClippingOptimizer if enable else optim
 
-    
+
     if optimizer_type == 'SGD':
         optimizer = maybe_add_full_model_gradient_clipping(torch.optim.SGD)(
             params, cfg.SOLVER.BASE_LR, momentum=cfg.SOLVER.MOMENTUM, 
@@ -62,7 +62,7 @@ def build_custom_optimizer(cfg: CfgNode, model: torch.nn.Module) -> torch.optim.
         )
     else:
         raise NotImplementedError(f"no optimizer type {optimizer_type}")
-    if not cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE == "full_model":
+    if cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE != "full_model":
         optimizer = maybe_add_gradient_clipping(cfg, optimizer)
     return optimizer
 

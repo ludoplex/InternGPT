@@ -25,7 +25,7 @@ def shapes_to_tensor(x: List[int], device: Optional[torch.device] = None) -> tor
         return torch.as_tensor(x, device=device)
     if torch.jit.is_tracing():
         assert all(
-            [isinstance(t, torch.Tensor) for t in x]
+            isinstance(t, torch.Tensor) for t in x
         ), "Shape should be tensor during tracing!"
         # as_tensor should not be used in tracing because it records a constant
         ret = torch.stack(x)
@@ -40,9 +40,7 @@ def cat(tensors: List[torch.Tensor], dim: int = 0):
     Efficient version of torch.cat that avoids a copy if there is only a single element in a list
     """
     assert isinstance(tensors, (list, tuple))
-    if len(tensors) == 1:
-        return tensors[0]
-    return torch.cat(tensors, dim)
+    return tensors[0] if len(tensors) == 1 else torch.cat(tensors, dim)
 
 
 def cross_entropy(input, target, *, reduction="mean", **kwargs):
@@ -124,9 +122,8 @@ def nonzero_tuple(x):
     A 'as_tuple=True' version of torch.nonzero to support torchscript.
     because of https://github.com/pytorch/pytorch/issues/38718
     """
-    if torch.jit.is_scripting():
-        if x.dim() == 0:
-            return x.unsqueeze(0).nonzero().unbind(1)
-        return x.nonzero().unbind(1)
-    else:
+    if not torch.jit.is_scripting():
         return x.nonzero(as_tuple=True)
+    if x.dim() == 0:
+        return x.unsqueeze(0).nonzero().unbind(1)
+    return x.nonzero().unbind(1)

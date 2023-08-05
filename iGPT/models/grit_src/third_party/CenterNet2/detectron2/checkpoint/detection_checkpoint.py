@@ -62,7 +62,7 @@ class DetectionCheckpointer(Checkpointer):
                 data = pickle.load(f, encoding="latin1")
             if "model" in data and "__author__" in data:
                 # file is in Detectron2 model zoo format
-                self.logger.info("Reading a file from '{}'".format(data["__author__"]))
+                self.logger.info(f"""Reading a file from '{data["__author__"]}'""")
                 return data
             else:
                 # assume file is from Caffe2 / Detectron1 model zoo

@@ -46,15 +46,12 @@ class LDMInpainting:
         model = instantiate_from_config(config.model)
         self.download_parameters()
         model.load_state_dict(torch.load(self.model_checkpoint_path)["state_dict"], strict=False)
-        if self.e_mode is not True:
-            self.model = model.to(device=device)
-        else:
-            self.model = model
+        self.model = model.to(device=device) if self.e_mode is not True else model
         self.sampler = DDIMSampler(model)
     
     def download_parameters(self):
-        url = 'https://heibox.uni-heidelberg.de/f/4d9ac7ea40c64582b7c9/?dl=1'
         if not os.path.exists(self.model_checkpoint_path):
+            url = 'https://heibox.uni-heidelberg.de/f/4d9ac7ea40c64582b7c9/?dl=1'
             wget.download(url, out=self.model_checkpoint_path)
 
     @prompts(name="Remove the Masked Object",

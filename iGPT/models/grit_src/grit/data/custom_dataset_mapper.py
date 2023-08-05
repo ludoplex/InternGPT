@@ -134,7 +134,7 @@ class ObjDescription:
         assert type(item) == torch.Tensor
         assert item.dim() == 1
         if len(item) > 0:
-            assert item.dtype == torch.int64 or item.dtype == torch.bool
+            assert item.dtype in [torch.int64, torch.bool]
             if item.dtype == torch.int64:
                 return ObjDescription([self.data[x.item()] for x in item])
             elif item.dtype == torch.bool:
@@ -146,4 +146,4 @@ class ObjDescription:
         return len(self.data)
 
     def __repr__(self):
-        return "ObjDescription({})".format(self.data)
+        return f"ObjDescription({self.data})"

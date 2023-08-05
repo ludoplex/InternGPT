@@ -164,7 +164,7 @@ def _soft_nms(
         elif method == "hard":  # standard NMS
             decay = (ious < linear_threshold).float()
         else:
-            raise NotImplementedError("{} soft nms method not implemented.".format(method))
+            raise NotImplementedError(f"{method} soft nms method not implemented.")
 
         scores *= decay
         keep = scores > prune_threshold

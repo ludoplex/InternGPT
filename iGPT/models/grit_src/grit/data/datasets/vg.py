@@ -26,8 +26,7 @@ def get_vg_meta():
     categories = [{'supercategory': 'object', 'id': 1, 'name': 'object'}]
     vg_categories = sorted(categories, key=lambda x: x["id"])
     thing_classes = [k["name"] for k in vg_categories]
-    meta = {"thing_classes": thing_classes}
-    return meta
+    return {"thing_classes": thing_classes}
 
 
 def load_vg_json(json_file, image_root, dataset_name=None):
@@ -45,12 +44,14 @@ def load_vg_json(json_file, image_root, dataset_name=None):
     anns = [lvis_api.img_ann_map[img_id] for img_id in img_ids]
 
     ann_ids = [ann["id"] for anns_per_image in anns for ann in anns_per_image]
-    assert len(set(ann_ids)) == len(ann_ids), \
-        "Annotation ids in '{}' are not unique".format(json_file)
+    assert len(set(ann_ids)) == len(
+        ann_ids
+    ), f"Annotation ids in '{json_file}' are not unique"
 
     imgs_anns = list(zip(imgs, anns))
-    logger.info("Loaded {} images in the LVIS v1 format from {}".format(
-        len(imgs_anns), json_file))
+    logger.info(
+        f"Loaded {len(imgs_anns)} images in the LVIS v1 format from {json_file}"
+    )
 
     dataset_dicts = []
 
@@ -69,10 +70,12 @@ def load_vg_json(json_file, image_root, dataset_name=None):
             assert anno["image_id"] == image_id
             if anno.get('iscrowd', 0) > 0:
                 continue
-            obj = {"bbox": anno["bbox"], "bbox_mode": BoxMode.XYWH_ABS}
-            obj["category_id"] = 0
-            obj["object_description"] = anno["caption"]
-
+            obj = {
+                "bbox": anno["bbox"],
+                "bbox_mode": BoxMode.XYWH_ABS,
+                "category_id": 0,
+                "object_description": anno["caption"],
+            }
             objs.append(obj)
         record["annotations"] = objs
         if len(record["annotations"]) == 0:

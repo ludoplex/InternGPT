@@ -355,11 +355,7 @@ class ViT(Backbone):
             )
 
         for blk in self.blocks:
-            if self.use_act_checkpoint:
-                x = checkpoint.checkpoint(blk, x)
-            else:
-                x = blk(x)
-
+            x = checkpoint.checkpoint(blk, x) if self.use_act_checkpoint else blk(x)
         return x.permute(0, 3, 1, 2)
 
 
@@ -370,7 +366,7 @@ class ViT_FPN(Backbone):
         self.bottom_up = bottom_up
         self.top_block = top_block
 
-        self._out_feature_strides = {"p{}".format(int(math.log2(s))): s for s in strides}
+        self._out_feature_strides = {f"p{int(math.log2(s))}": s for s in strides}
         self._out_features = list(self._out_feature_strides.keys())
         self._out_feature_channels = {k: out_channels for k in self._out_features}
         self._size_divisibility = strides[2]
@@ -417,9 +413,7 @@ class ViT_FPN(Backbone):
         results.extend(self.top_block(stride32_feature))
 
         assert len(self._out_features) == len(results)
-        fpn_out = {f: res for f, res in zip(self._out_features, results)}
-
-        return fpn_out
+        return dict(zip(self._out_features, results))
     @property
     def size_divisibility(self):
         return self._size_divisibility
@@ -465,13 +459,14 @@ def build_vit_fpn_backbone(cfg, input_shape: ShapeSpec):
         out_feature="last_feat",)
 
     out_channels = cfg.MODEL.FPN.OUT_CHANNELS
-    assert out_channels == 256 or out_channels == 768 or out_channels == 1024
-    backbone = ViT_FPN(bottom_up=bottom_up,
-                       top_block=LastLevelP6P7_P5(out_channels, out_channels),
-                       out_channels=out_channels,
-                       strides=[8, 16, 32, 64, 128],
-                       vit_out_dim=vit_out_dim)
-    return backbone
+    assert out_channels in [256, 768, 1024]
+    return ViT_FPN(
+        bottom_up=bottom_up,
+        top_block=LastLevelP6P7_P5(out_channels, out_channels),
+        out_channels=out_channels,
+        strides=[8, 16, 32, 64, 128],
+        vit_out_dim=vit_out_dim,
+    )
 
 
 @BACKBONE_REGISTRY.register()
@@ -497,13 +492,14 @@ def build_vit_fpn_backbone_large(cfg, input_shape: ShapeSpec):
         out_feature="last_feat",)
 
     out_channels = cfg.MODEL.FPN.OUT_CHANNELS
-    assert out_channels == 256 or out_channels == 768 or out_channels == 1024
-    backbone = ViT_FPN(bottom_up=bottom_up,
-                          top_block=LastLevelP6P7_P5(out_channels, out_channels),
-                          out_channels=out_channels,
-                          strides=[8, 16, 32, 64, 128],
-                          vit_out_dim=vit_out_dim)
-    return backbone
+    assert out_channels in [256, 768, 1024]
+    return ViT_FPN(
+        bottom_up=bottom_up,
+        top_block=LastLevelP6P7_P5(out_channels, out_channels),
+        out_channels=out_channels,
+        strides=[8, 16, 32, 64, 128],
+        vit_out_dim=vit_out_dim,
+    )
 
 
 @BACKBONE_REGISTRY.register()
@@ -529,10 +525,11 @@ def build_vit_fpn_backbone_huge(cfg, input_shape: ShapeSpec):
         out_feature="last_feat",)
 
     out_channels = cfg.MODEL.FPN.OUT_CHANNELS
-    assert out_channels == 256 or out_channels == 768 or out_channels == 1024
-    backbone = ViT_FPN(bottom_up=bottom_up,
-                          top_block=LastLevelP6P7_P5(out_channels, out_channels),
-                          out_channels=out_channels,
-                          strides=[8, 16, 32, 64, 128],
-                          vit_out_dim=vit_out_dim)
-    return backbone
+    assert out_channels in [256, 768, 1024]
+    return ViT_FPN(
+        bottom_up=bottom_up,
+        top_block=LastLevelP6P7_P5(out_channels, out_channels),
+        out_channels=out_channels,
+        strides=[8, 16, 32, 64, 128],
+        vit_out_dim=vit_out_dim,
+    )

@@ -17,8 +17,7 @@ class GRiT(GeneralizedRCNN):
 
     @classmethod
     def from_config(cls, cfg):
-        ret = super().from_config(cfg)
-        return ret
+        return super().from_config(cfg)
 
     def inference(
         self,
@@ -60,7 +59,7 @@ class GRiT(GeneralizedRCNN):
             features, proposals, gt_instances, targets_task=targets_task)
 
         losses = {}
-        losses.update(roihead_textdecoder_losses)
+        losses |= roihead_textdecoder_losses
         losses.update(proposal_losses)
 
         return losses

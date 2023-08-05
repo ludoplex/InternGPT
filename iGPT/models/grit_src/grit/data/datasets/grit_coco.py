@@ -26,8 +26,7 @@ def get_GRiTcoco_meta():
     categories = [{'supercategory': 'object', 'id': 1, 'name': 'object'}]
     categories = sorted(categories, key=lambda x: x["id"])
     thing_classes = [k["name"] for k in categories]
-    meta = {"thing_classes": thing_classes}
-    return meta
+    return {"thing_classes": thing_classes}
 
 
 def load_GRiTcoco_json(json_file, image_root, dataset_name=None):
@@ -43,26 +42,25 @@ def load_GRiTcoco_json(json_file, image_root, dataset_name=None):
         logger.info("Loading {} takes {:.2f} seconds.".format(
             json_file, timer.seconds()))
 
-    class_names = {}
     sort_cat = sorted(lvis_api.dataset['categories'], key=lambda x: x['id'])
-    for x in sort_cat:
-        class_names[x['id']] = x['name']
-
+    class_names = {x['id']: x['name'] for x in sort_cat}
     img_ids = sorted(lvis_api.imgs.keys())
     imgs = lvis_api.load_imgs(img_ids)
     anns = [lvis_api.img_ann_map[img_id] for img_id in img_ids]
 
     ann_ids = [ann["id"] for anns_per_image in anns for ann in anns_per_image]
-    assert len(set(ann_ids)) == len(ann_ids), \
-        "Annotation ids in '{}' are not unique".format(json_file)
+    assert len(set(ann_ids)) == len(
+        ann_ids
+    ), f"Annotation ids in '{json_file}' are not unique"
 
     imgs_anns = list(zip(imgs, anns))
-    logger.info("Loaded {} images in the LVIS v1 format from {}".format(
-        len(imgs_anns), json_file))
+    logger.info(
+        f"Loaded {len(imgs_anns)} images in the LVIS v1 format from {json_file}"
+    )
 
     dataset_dicts = []
 
-    for (img_dict, anno_dict_list) in imgs_anns:
+    for img_dict, anno_dict_list in imgs_anns:
         record = {}
         if "file_name" in img_dict:
             file_name = img_dict["file_name"]
@@ -77,14 +75,17 @@ def load_GRiTcoco_json(json_file, image_root, dataset_name=None):
             assert anno["image_id"] == image_id
             if anno.get('iscrowd', 0) > 0:
                 continue
-            obj = {"bbox": anno["bbox"], "bbox_mode": BoxMode.XYWH_ABS}
-            obj["category_id"] = 0
-            obj["object_description"] = class_names[anno['category_id']]
+            obj = {
+                "bbox": anno["bbox"],
+                "bbox_mode": BoxMode.XYWH_ABS,
+                "category_id": 0,
+                "object_description": class_names[anno['category_id']],
+            }
             if 'segmentation' in anno:
                 segm = anno["segmentation"]
                 valid_segm = [poly for poly in segm \
                     if len(poly) % 2 == 0 and len(poly) >= 6]
-                if not len(segm) == len(valid_segm):
+                if len(segm) != len(valid_segm):
                     print('Annotation contains an invalid polygon with < 3 points')
                 assert len(segm) > 0
                 obj["segmentation"] = segm

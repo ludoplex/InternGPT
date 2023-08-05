@@ -143,15 +143,13 @@ class SemSegEvaluator(DatasetEvaluator):
         fiou = np.sum(iou[acc_valid] * class_weights[acc_valid])
         pacc = np.sum(tp) / np.sum(pos_gt)
 
-        res = {}
-        res["mIoU"] = 100 * miou
-        res["fwIoU"] = 100 * fiou
+        res = {"mIoU": 100 * miou, "fwIoU": 100 * fiou}
         for i, name in enumerate(self._class_names):
-            res["IoU-{}".format(name)] = 100 * iou[i]
+            res[f"IoU-{name}"] = 100 * iou[i]
         res["mACC"] = 100 * macc
         res["pACC"] = 100 * pacc
         for i, name in enumerate(self._class_names):
-            res["ACC-{}".format(name)] = 100 * acc[i]
+            res[f"ACC-{name}"] = 100 * acc[i]
 
         if self._output_dir:
             file_path = os.path.join(self._output_dir, "sem_seg_evaluation.pth")
@@ -171,7 +169,7 @@ class SemSegEvaluator(DatasetEvaluator):
             if self._contiguous_id_to_dataset_id is not None:
                 assert (
                     label in self._contiguous_id_to_dataset_id
-                ), "Label {} is not in the metadata info for {}".format(label, self._dataset_name)
+                ), f"Label {label} is not in the metadata info for {self._dataset_name}"
                 dataset_id = self._contiguous_id_to_dataset_id[label]
             else:
                 dataset_id = int(label)

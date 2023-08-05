@@ -96,18 +96,16 @@ def gen_new_name(orginal_name, suffix="update", ext="png"):
 def dilate_mask(mask, dilate_factor=9):
     # dilate mask
     mask = mask.astype(np.uint8)
-    dilated_mask = cv2.dilate(mask, np.ones((dilate_factor, dilate_factor), np.uint8), iterations=1)
-    
-    return dilated_mask
+    return cv2.dilate(
+        mask, np.ones((dilate_factor, dilate_factor), np.uint8), iterations=1
+    )
     
 
 def cal_dilate_factor(mask):
     area = mask[mask != 0].sum()
     edge = cv2.Canny(mask, 30, 226)
     perimeter = edge.sum()
-    ratio = 0
-    if perimeter > 0:
-        ratio = int(area * 0.55 / perimeter)
+    ratio = int(area * 0.55 / perimeter) if perimeter > 0 else 0
     if ratio % 2 == 0:
         ratio += 1
     return ratio
@@ -166,8 +164,7 @@ def blend_gt2pt(old_image, new_image, sigma=0.15, steps=100):
     gaussian_gt_img = kernel * gt_img_array + (1 - kernel) * pt_gt_img  # gt img with blur img
     gaussian_gt_img = gaussian_gt_img.astype(np.int64)
     easy_img[pos_h:pos_h + old_size[1], pos_w:pos_w + old_size[0]] = gaussian_gt_img
-    gaussian_img = Image.fromarray(easy_img)
-    return gaussian_img
+    return Image.fromarray(easy_img)
 
 
 def loadvideo_decord(sample, sample_rate_scale=1,new_width=384, new_height=384, clip_len=8, frame_sample_rate=2,num_segment=1):
@@ -188,8 +185,7 @@ def loadvideo_decord(sample, sample_rate_scale=1,new_width=384, new_height=384, 
 
     all_index = all_index[::int(sample_rate_scale)]
     vr.seek(0)
-    buffer = vr.get_batch(all_index).asnumpy()
-    return buffer
+    return vr.get_batch(all_index).asnumpy()
 
 
 class LoadVideo:
@@ -224,8 +220,7 @@ class LoadVideo:
 
         all_index = all_index[::int(sample_rate_scale)]
         vr.seek(0)
-        buffer = vr.get_batch(all_index).asnumpy()
-        return buffer
+        return vr.get_batch(all_index).asnumpy()
     
 
 def loadvideo_decord_origin(self, sample, sample_rate_scale=1,new_width=384, new_height=384, clip_len=8, frame_sample_rate=2,num_segment=1):
@@ -246,8 +241,7 @@ def loadvideo_decord_origin(self, sample, sample_rate_scale=1,new_width=384, new
 
     all_index = all_index[::int(sample_rate_scale)]
     vr.seek(0)
-    buffer = vr.get_batch(all_index).asnumpy()
-    return buffer
+    return vr.get_batch(all_index).asnumpy()
 
 
 

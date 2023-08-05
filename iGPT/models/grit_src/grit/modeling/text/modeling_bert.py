@@ -129,8 +129,11 @@ class BertSelfAttention(nn.Module):
         new_context_layer_shape = context_layer.size()[:-2] + (self.all_head_size,)
         context_layer = context_layer.view(*new_context_layer_shape)
 
-        outputs = (context_layer, attention_probs) if self.output_attentions else (context_layer,)
-        return outputs
+        return (
+            (context_layer, attention_probs)
+            if self.output_attentions
+            else (context_layer,)
+        )
 
 
 class BertSelfOutput(nn.Module):
@@ -170,8 +173,7 @@ class BertAttention(nn.Module):
             self_outputs = self.self(input_tensor, attention_mask, head_mask,
                     history_state)
         attention_output = self.output(self_outputs[0], input_tensor)
-        outputs = (attention_output,) + self_outputs[1:]  # add attentions if we output them
-        return outputs
+        return (attention_output,) + self_outputs[1:]
 
 
 class BertIntermediate(nn.Module):
@@ -220,8 +222,7 @@ class Mlp(nn.Module):
             intermediate_output = self.intermediate(attention_output)
         else:
             intermediate_output = self.intermediate(self.LayerNorm(attention_output))
-        layer_output = self.output(intermediate_output, attention_output)
-        return layer_output
+        return self.output(intermediate_output, attention_output)
 
 
 class BertLayer(nn.Module):
@@ -256,8 +257,7 @@ class BertLayer(nn.Module):
             else:
                 intermediate_output = self.intermediate(self.LayerNorm(attention_output))
             layer_output = self.output(intermediate_output, attention_output)
-        outputs = (layer_output,) + attention_outputs[1:]  # add attentions if we output them
-        return outputs
+        return (layer_output,) + attention_outputs[1:]
 
 
 class BertEncoder(nn.Module):
@@ -377,22 +377,19 @@ class PretrainedConfig(object):
         except EnvironmentError:
             if pretrained_model_name_or_path in cls.pretrained_config_archive_map:
                 logger.error(
-                    "Couldn't reach server at '{}' to download pretrained model configuration file.".format(
-                        config_file))
+                    f"Couldn't reach server at '{config_file}' to download pretrained model configuration file."
+                )
             else:
                 logger.error(
-                    "Model name '{}' was not found in model name list ({}). "
-                    "We assumed '{}' was a path or url but couldn't find any file "
-                    "associated to this path or url.".format(
-                        pretrained_model_name_or_path,
-                        ', '.join(cls.pretrained_config_archive_map.keys()),
-                        config_file))
+                    f"Model name '{pretrained_model_name_or_path}' was not found in model name list ({', '.join(cls.pretrained_config_archive_map.keys())}). We assumed '{config_file}' was a path or url but couldn't find any file associated to this path or url."
+                )
             return None
         if resolved_config_file == config_file:
-            logger.info("loading configuration file {}".format(config_file))
+            logger.info(f"loading configuration file {config_file}")
         else:
-            logger.info("loading configuration file {} from cache at {}".format(
-                config_file, resolved_config_file))
+            logger.info(
+                f"loading configuration file {config_file} from cache at {resolved_config_file}"
+            )
 
         # Load config
         config = cls.from_json_file(resolved_config_file)
@@ -414,10 +411,7 @@ class PretrainedConfig(object):
             kwargs.pop(key, None)
 
         logger.info("Model config %s", config)
-        if return_unused_kwargs:
-            return config, kwargs
-        else:
-            return config
+        return (config, kwargs) if return_unused_kwargs else config
 
     @classmethod
     def from_dict(cls, json_object):
@@ -442,8 +436,7 @@ class PretrainedConfig(object):
 
     def to_dict(self):
         """Serializes this instance to a Python dictionary."""
-        output = copy.deepcopy(self.__dict__)
-        return output
+        return copy.deepcopy(self.__dict__)
 
     def to_json_string(self):
         """Serializes this instance to a JSON string."""
