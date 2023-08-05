@@ -22,13 +22,11 @@ class LoadTextTokens(object):
         input_ids = [begin_token] + payload + [self.tokenizer.sep_token_id]
 
         need_predict = [0] + need_predict + [1]
-        data = {
+        return {
             'text_tokens': torch.tensor(input_ids),
             'text_lengths': len(input_ids),
             'need_predict': torch.tensor(need_predict),
         }
-
-        return data
 
     def __call__(self, object_descriptions, box_features, begin_token):
         text_tokens = []
@@ -45,36 +43,33 @@ class LoadTextTokens(object):
         need_predict = torch.cat(self.collate(need_predict), dim=0).to(box_features.device)
 
         assert text_tokens.dim() == 2 and need_predict.dim() == 2
-        data = {'text_tokens': text_tokens,
-                'text_lengths': text_lengths,
-                'need_predict': need_predict}
-
-        return data
+        return {
+            'text_tokens': text_tokens,
+            'text_lengths': text_lengths,
+            'need_predict': need_predict,
+        }
 
     def collate(self, batch):
-        if all(isinstance(b, torch.Tensor) for b in batch) and len(batch) > 0:
-            if not all(b.shape == batch[0].shape for b in batch[1:]):
-                assert all(len(b.shape) == len(batch[0].shape) for b in batch[1:])
-                shape = torch.tensor([b.shape for b in batch])
-                max_shape = tuple(shape.max(dim=0)[0].tolist())
-                batch2 = []
-                for b in batch:
-                    if any(c < m for c, m in zip(b.shape, max_shape)):
-                        b2 = torch.zeros(max_shape, dtype=b.dtype, device=b.device)
-                        if b.dim() == 1:
-                            b2[:b.shape[0]] = b
-                        elif b.dim() == 2:
-                            b2[:b.shape[0], :b.shape[1]] = b
-                        elif b.dim() == 3:
-                            b2[:b.shape[0], :b.shape[1], :b.shape[2]] = b
-                        else:
-                            raise NotImplementedError
-                        b = b2
-                    batch2.append(b[None, ...])
-            else:
-                batch2 = []
-                for b in batch:
-                    batch2.append(b[None, ...])
-            return batch2
-        else:
+        if not all(isinstance(b, torch.Tensor) for b in batch) or len(batch) <= 0:
             raise NotImplementedError
+        batch2 = []
+        if any(b.shape != batch[0].shape for b in batch[1:]):
+            assert all(len(b.shape) == len(batch[0].shape) for b in batch[1:])
+            shape = torch.tensor([b.shape for b in batch])
+            max_shape = tuple(shape.max(dim=0)[0].tolist())
+            for b in batch:
+                if any(c < m for c, m in zip(b.shape, max_shape)):
+                    b2 = torch.zeros(max_shape, dtype=b.dtype, device=b.device)
+                    if b.dim() == 1:
+                        b2[:b.shape[0]] = b
+                    elif b.dim() == 2:
+                        b2[:b.shape[0], :b.shape[1]] = b
+                    elif b.dim() == 3:
+                        b2[:b.shape[0], :b.shape[1], :b.shape[2]] = b
+                    else:
+                        raise NotImplementedError
+                    b = b2
+                batch2.append(b[None, ...])
+        else:
+            batch2.extend(b[None, ...] for b in batch)
+        return batch2

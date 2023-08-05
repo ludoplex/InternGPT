@@ -134,7 +134,7 @@ def cut_dialogue_history(history_memory, keep_last_n_words=500):
 class ConversationBot:
     def __init__(self, load_dict, e_mode=False, chat_disabled=False):
         print(f"Initializing InternGPT, load_dict={load_dict}")
-        
+
         self.chat_disabled = chat_disabled
         self.models = {}
         self.audio_model = whisper.load_model("small").to('cuda:0')
@@ -147,7 +147,7 @@ class ConversationBot:
         for class_name, module in globals().items():
             if getattr(module, 'template_model', False):
                 template_required_names = {k for k in inspect.signature(module.__init__).parameters.keys() if k!='self'}
-                loaded_names = set([type(e).__name__ for e in self.models.values()])
+                loaded_names = {type(e).__name__ for e in self.models.values()}
                 if template_required_names.issubset(loaded_names):
                     self.models[class_name] = globals()[class_name](
                         **{name: self.models[name] for name in template_required_names})
@@ -171,9 +171,8 @@ class ConversationBot:
                 return_intermediate_steps=True,
                 agent_kwargs={'prefix': INTERN_GPT_PREFIX, 'format_instructions': INTERN_GPT_FORMAT_INSTRUCTIONS,
                             'suffix': INTERN_GPT_SUFFIX}, )
-        
-        user_state = [{'agent': agent, 'memory': memory, 'StyleGAN': {}}]
-        return user_state
+
+        return [{'agent': agent, 'memory': memory, 'StyleGAN': {}}]
     
     def find_latest_image(self, file_list):
         res = None
@@ -207,17 +206,16 @@ class ConversationBot:
     def find_param(self, msg, keyword, excluded=False):
         p1 = re.compile(f'(image/[-\\w]*.(png|mp4))')
         p2 = re.compile(f'(image/[-\\w]*{keyword}.(png|mp4))')
-        if keyword == None or len(keyword) == 0:
+        if keyword is None or len(keyword) == 0:
             out_filenames = p1.findall(msg)
         elif not excluded:
             out_filenames = p2.findall(msg)
-        elif excluded:
+        else:
             all_files = p1.findall(msg)
             excluded_files = p2.findall(msg)
             out_filenames = set(all_files) - set(excluded_files)
 
-        res = self.find_latest_image(out_filenames)
-        return res
+        return self.find_latest_image(out_filenames)
 
     def rectify_action(self, inputs, history_msg, agent):
         print('Rectify the action.')
@@ -313,12 +311,11 @@ class ConversationBot:
         return res
     
     def check_illegal_files(self, file_list):
-        illegal_files = []
-        for file_item in file_list:
-            if not os.path.exists(file_item[0]):
-                illegal_files.append(file_item[0])
-
-        return illegal_files
+        return [
+            file_item[0]
+            for file_item in file_list
+            if not os.path.exists(file_item[0])
+        ]
     
     def find_parent(self, cur_path, history_msg):
         if cur_path is None:
@@ -333,15 +330,15 @@ class ConversationBot:
         if len(out_filenames) > 0:
             out_filenames = out_filenames[0][0]
         else:
-            out_filenames = None
-            
             all_file_items = os.listdir(f'{root_path}')
-            for item in all_file_items:
-                if item.startswith(parent_name):
-                    out_filenames = os.path.join(root_path, item)
-                    # out_filenames = item
-                    break
-
+            out_filenames = next(
+                (
+                    os.path.join(root_path, item)
+                    for item in all_file_items
+                    if item.startswith(parent_name)
+                ),
+                None,
+            )
         print(f'{cur_path}, parent path: {out_filenames}')
         return out_filenames
     
@@ -379,18 +376,15 @@ class ConversationBot:
 
         if len(image_path) == 0 or len(mask_path) == 0:
             return True
-        
+
         res = self.find_param(response, '')
         if res == image_path:
             return True
-        
+
         img_idx = response.find(image_path)
         mask_idx = response.find(mask_path)
 
-        if mask_idx < img_idx:
-            return False
-
-        return True
+        return mask_idx >= img_idx
 
     def exec_simple_action(self, inputs, history_msg):
         print('Execute the simple action without ChatGPT.')
@@ -535,11 +529,11 @@ class ConversationBot:
 
         state += [(text, None)] + new_state
         if res is not None and agent.memory.buffer.count(res) <= 1:
-            state = state + [(None, response + f' `{res}` is as follows: ')]
-            state = state + [(None, (res, ))]
+            state += [(None, f'{response} `{res}` is as follows: ')]
+            state += [(None, (res, ))]
         else:
-            state = state + [(None, response)]
-            
+            state += [(None, response)]
+
         print(f"\nProcessed run_text, Input text: {text}\nCurrent state: {state}\n"
               f"Current Memory: {agent.memory.buffer}")
 
@@ -574,9 +568,9 @@ class ConversationBot:
         user_state[0]['audio_path'] = new_audio_path
 
         Human_prompt = f'\nHuman: provide an audio file named {new_audio_path}. You should use tools to finish following tasks, rather than directly imagine from my description. If you understand, say \"Received\". \n'
-        AI_prompt = f"Received. "
+        AI_prompt = "Received. "
 
-        user_state[0]['agent'].memory.buffer += Human_prompt + 'AI: ' + AI_prompt
+        user_state[0]['agent'].memory.buffer += f'{Human_prompt}AI: {AI_prompt}'
 
         state = state + [((new_audio_path, ), AI_prompt)]
 
@@ -616,12 +610,12 @@ class ConversationBot:
         if ocr_res is not None and len(ocr_res) > 0:
             Human_prompt += f'Recognized optical characters: {ocr_res}. '
             # user_state[0]['ocr_res'] = ocr_res_raw
-            
+
         Human_prompt += 'This information helps you to understand this image, but you should use tools to finish following tasks, rather than directly imagine from my description. If you understand, say \"Received\". \n'
 
         AI_prompt = "Received. "
-        user_state[0]['agent'].memory.buffer += Human_prompt + 'AI: ' + AI_prompt
-        state = state + [(f"![](file={image_filename})*{image_filename}*", AI_prompt)]
+        user_state[0]['agent'].memory.buffer += f'{Human_prompt}AI: {AI_prompt}'
+        state += [(f"![](file={image_filename})*{image_filename}*", AI_prompt)]
         return state, user_state
 
     def upload_image(self, image, state, user_state):
@@ -660,9 +654,9 @@ class ConversationBot:
             description = 'A video.'
         user_state[0]['video_caption'] = description
         Human_prompt = f'\nHuman: provide a video named {new_video_path}. The description is: {description}. This information helps you to understand this video, but you should use tools to finish following tasks, rather than directly imagine from my description. If you understand, say \"Received\". \n'
-        AI_prompt = f"Received. "
+        AI_prompt = "Received. "
 
-        user_state[0]['agent'].memory.buffer += Human_prompt + 'AI: ' + AI_prompt
+        user_state[0]['agent'].memory.buffer += f'{Human_prompt}AI: {AI_prompt}'
 
         state = state + [((new_video_path, ), AI_prompt)]
 
@@ -739,8 +733,8 @@ class ConversationBot:
     def process_ocr(self, image, state, user_state):
         Human_prompt="Please process this image based on given mask."
         if image is None or \
-            user_state[0].get('image_path', None) is None or \
-                not os.path.exists(user_state[0]['image_path']):
+                user_state[0].get('image_path', None) is None or \
+                    not os.path.exists(user_state[0]['image_path']):
             AI_prompt = "Please upload an image for processing."
             state += [(Human_prompt, AI_prompt)]
             return None, state, state, user_state
@@ -755,20 +749,20 @@ class ConversationBot:
             AI_prompt = "You can click the image and ask me some questions."
             state += [(Human_prompt, AI_prompt)]
             return image['image'], state, state, user_state
-        
+
         chosen_ocr_res = None
         if 'ImageOCRRecognition' in self.models.keys():
             # self.models['ImageOCRRecognition'].clicked_region = mask
             chosen_ocr_res = self.models['ImageOCRRecognition'].get_ocr_by_mask(mask, user_state[0]['ocr_res'])
         else:
-            state += [(Human_prompt, f'ImageOCRRecognition is not loaded.')]
+            state += [(Human_prompt, 'ImageOCRRecognition is not loaded.')]
 
         if chosen_ocr_res is not None and len(chosen_ocr_res) > 0:
             AI_prompt = f'OCR result: {chosen_ocr_res}'
             # self.agent.memory.buffer = self.agent.memory.buffer + Human_prompt + ' AI: ' + AI_prompt
         else:
             AI_prompt = 'I didn\'t find any optical characters at given location.'
-        
+
         state = state + [(Human_prompt, AI_prompt)]
         user_state[0]['agent'].memory.buffer += '\nHuman: ' + Human_prompt + '\nAI: ' + AI_prompt
         print(f"\nProcessed process_ocr, Input image: {uploaded_image_filename}\nCurrent state: {state}\n"
@@ -808,7 +802,7 @@ class ConversationBot:
         if model is None:
             state += [None, 'Please load StyleGAN!']
             return None, state, state, user_state
-        
+
         if user_state[0].get('StyleGAN', None) is None:
             user_state[0]['StyleGAN'] = {}
 
@@ -819,7 +813,7 @@ class ConversationBot:
             seed_everything(init_seed)
             user_state[0]['StyleGAN']['seed'] = init_seed
 
-        device = model.device 
+        device = model.device
         e_mode = model.e_mode
         g_ema = model.g_ema
         if e_mode is True:
@@ -840,12 +834,12 @@ class ConversationBot:
             'sample': sample.to('cpu'),
             'history': []
         }
-        
+
         image_arr = to_image(sample)
         new_image = Image.fromarray(image_arr)
         image_filename = os.path.join('image', f"{str(uuid.uuid4())[:6]}.png")
         image_filename = gen_new_name(image_filename, 'image')
-        
+
         new_image.save(image_filename, "PNG")
         state = state + [(None, f"![](file={image_filename})*{image_filename}*")]
         user_state[0]['StyleGAN']['state'] = gan_state
@@ -860,7 +854,7 @@ class ConversationBot:
         Human_prompt = f'\nHuman: provide a image named {image_filename}. You should use tools to finish following tasks, rather than directly imagine from my description. If you understand, say \"Received\". \n'
         AI_prompt = "Received. "
         # self.agent.memory.buffer = self.agent.memory.buffer + Human_prompt + ' AI: ' + AI_prompt
-        user_state[0]['agent'].memory.buffer += Human_prompt + 'AI: ' + AI_prompt
+        user_state[0]['agent'].memory.buffer += f'{Human_prompt}AI: {AI_prompt}'
         return image_arr, state, state, user_state
     
     def drag_it(self, image, max_iters, state, user_state):
@@ -875,10 +869,10 @@ class ConversationBot:
         image_path = user_state[0]['StyleGAN'].get('image_path', None)
         if image_path is None:
             return image, 0, state, state, user_state
-        
+
         points = user_state[0]['StyleGAN']['points']
         if len(points['start']) == 0:
-            state += [(None, f'Please click the image.')]
+            state += [(None, 'Please click the image.')]
             return image, 0, state, state, user_state
 
         if len(points['start']) != len(points['end']):
@@ -890,7 +884,7 @@ class ConversationBot:
         if style_gan_state is None:
             state += [(None, 'Please click the button `New Image`.')]
             return image, 0, state, state, user_state 
-        
+
         max_iters = int(max_iters)
         latent = style_gan_state['latent']
         noise = style_gan_state['noise']
@@ -901,8 +895,7 @@ class ConversationBot:
         start_points = [torch.tensor(p).float() for p in points['start']]
         end_points = [torch.tensor(p).float() for p in points['end']]
         mask = None
-            
-        step = 0
+
         device = model.device
         e_mode = model.e_mode
         latent = latent.to(device)
@@ -912,9 +905,9 @@ class ConversationBot:
         for i in range(len(noise)):
             if isinstance(noise[i], torch.Tensor):
                 noise[i] = noise[i].to(device)
-        for sample2, latent, F, handle_points in drag_gan(model.g_ema, latent, noise, F,
+        for step, (sample2, latent, F, handle_points) in enumerate(drag_gan(model.g_ema, latent, noise, F,
                                                           start_points, end_points, mask,
-                                                          device, max_iters=max_iters):
+                                                          device, max_iters=max_iters), start=1):
             image = to_image(sample2)
             style_gan_state['F'] = F.cpu()
             style_gan_state['latent'] = latent.cpu()
@@ -924,7 +917,6 @@ class ConversationBot:
             add_points_to_image(image, points, size=click_size)
 
             style_gan_state['history'].append(org_image)
-            step += 1
             # print(f'step = {step}')
             if max_iters == step:
                 video_name = gen_new_name(image_path, 'DragGAN', 'mp4')
@@ -943,7 +935,7 @@ class ConversationBot:
                 user_state[0]['StyleGAN']['state'] = style_gan_state
                 Human_prompt = f'\nHuman: provide a image named {image_filename}. You should use tools to finish following tasks, rather than directly imagine from my description. If you understand, say \"Received\". \n'
                 AI_prompt = "Received. "
-                user_state[0]['agent'].memory.buffer += Human_prompt + 'AI: ' + AI_prompt
+                user_state[0]['agent'].memory.buffer += f'{Human_prompt}AI: {AI_prompt}'
                 del latent, sample2, F
                 if e_mode is True:
                     model.g_ema.to(device="cpu")
@@ -980,14 +972,11 @@ class ConversationBot:
     def reset_drag_points(self, image, user_state):
         if user_state[0].get('StyleGAN', None) is None:
             return image, user_state
-        
+
         user_state[0]['StyleGAN']['points'] = {'end': [], 'start': []}
 
         gan_state = user_state[0]['StyleGAN'].get('state', None)
-        sample = None
-        if gan_state is not None:
-            sample = gan_state.get('sample', None)
-
+        sample = gan_state.get('sample', None) if gan_state is not None else None
         if sample is not None:
             image = to_image(sample)
         else:

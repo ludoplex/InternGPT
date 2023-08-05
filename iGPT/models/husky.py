@@ -86,25 +86,28 @@ def load_model(
 
 
 def load_image(image_file):
-    if image_file.startswith('http') or image_file.startswith('https'):
-        response = requests.get(image_file)
-        image = Image.open(BytesIO(response.content)).convert('RGB')
-    else:
-        image = Image.open(image_file).convert('RGB')
-    return image
+    if not image_file.startswith('http') and not image_file.startswith(
+        'https'
+    ):
+        return Image.open(image_file).convert('RGB')
+    response = requests.get(image_file)
+    return Image.open(BytesIO(response.content)).convert('RGB')
 
 
 def build_transform(input_size):
     crop_pct = 224 / 256
     size = int(input_size / crop_pct)
-    transform = T.Compose([
-        T.Lambda(lambda img: img.convert('RGB') if img.mode != 'RGB' else img),
-        T.Resize(size, interpolation=InterpolationMode.BICUBIC),
-        T.CenterCrop(input_size),
-        T.ToTensor(),
-        T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
-    ])
-    return transform
+    return T.Compose(
+        [
+            T.Lambda(
+                lambda img: img.convert('RGB') if img.mode != 'RGB' else img
+            ),
+            T.Resize(size, interpolation=InterpolationMode.BICUBIC),
+            T.CenterCrop(input_size),
+            T.ToTensor(),
+            T.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        ]
+    )
 
 
 class StoppingCriteriaSub(StoppingCriteria):
@@ -114,11 +117,10 @@ class StoppingCriteriaSub(StoppingCriteria):
         self.stops = stops
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs):
-        for stop in self.stops:
-            if torch.all((stop == input_ids[0][-len(stop):])).item():
-                return True
-
-        return False
+        return any(
+            torch.all((stop == input_ids[0][-len(stop) :])).item()
+            for stop in self.stops
+        )
 
 
 @torch.inference_mode()
@@ -166,8 +168,7 @@ def generate_stream(
     )
 
     preds = generation_output.sequences
-    outputs = tokenizer.batch_decode(preds, skip_special_tokens=True)
-    return outputs
+    return tokenizer.batch_decode(preds, skip_special_tokens=True)
 
 
 def resize_pos_embed(posemb, posemb_new, num_prefix_tokens=1, gs_new=()):
@@ -296,15 +297,13 @@ class Chat:
         )
 
     def ask(self, text, conv):
-        conversations = []
         if len(conv.messages) > 0:
             conv.append_message(conv.roles[0], text)
         else:
             conv.append_message(conv.roles[0], self.image_query + "\n" + text)
 
         conv.append_message(conv.roles[1], None)
-        conversations.append(conv.get_prompt())
-        return conversations
+        return [conv.get_prompt()]
 
     @torch.no_grad()
     def get_image_embedding(self, image_file):
@@ -316,8 +315,7 @@ class Chat:
         pixel_values = self.image_processor(image)
         pixel_values = pixel_values.unsqueeze(
             0).to(self.device, dtype=self.dtype)
-        language_model_inputs = self.model.extract_feature(pixel_values)
-        return language_model_inputs
+        return self.model.extract_feature(pixel_values)
 
     @torch.no_grad()
     def answer(self, conversations, language_model_inputs):

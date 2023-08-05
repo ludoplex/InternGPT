@@ -34,7 +34,7 @@ def HWC3(x):
         x = x[:, :, None]
     assert x.ndim == 3
     H, W, C = x.shape
-    assert C == 1 or C == 3 or C == 4
+    assert C in [1, 3, 4]
     if C == 3:
         return x
     if C == 1:
@@ -99,7 +99,7 @@ class Text2Image:
             self.pipe.to(self.device)
         image_filename = os.path.join('image', f"{str(uuid.uuid4())[:6]}.png")
         image_filename = gen_new_name(image_filename)
-        prompt = text + ', ' + self.a_prompt
+        prompt = f'{text}, {self.a_prompt}'
         image = self.pipe(prompt, negative_prompt=self.n_prompt).images[0]
         image.save(image_filename)
         print(
@@ -675,8 +675,8 @@ class SegmentAnything:
         self.predictor = SamPredictor(self.sam)
         
     def download_parameters(self):
-        url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
         if not os.path.exists(self.model_checkpoint_path):
+            url = "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth"
             wget.download(url, out=self.model_checkpoint_path)
 
     @prompts(name="Segment Anything On Image",
@@ -726,9 +726,7 @@ class SegmentAnything:
         idxs = np.nonzero(mask)
         num_points = min(max(1, int(len(idxs[0]) * 0.01)), 16)
         sampled_idx = random.sample(range(0, len(idxs[0])), num_points)
-        new_mask = []
-        for i in range(len(idxs)):
-            new_mask.append(idxs[i][sampled_idx])
+        new_mask = [idxs[i][sampled_idx] for i in range(len(idxs))]
         points = np.array(new_mask).reshape(2, -1).transpose(1, 0)[:, ::-1]
         labels = np.array([1] * num_points)
 
@@ -942,12 +940,11 @@ class ImageOCRRecognition:
                 ocr_text_list.append(res)
         ocr_text_list = list(dict.fromkeys(ocr_text_list))
         ocr_text = '\n'.join(ocr_text_list)
-        if ocr_text is None or len(ocr_text.strip()) == 0:
-            ocr_text = 'No characters in the image'
-        else:
-            ocr_text = '\n' + ocr_text
-        
-        return ocr_text
+        return (
+            'No characters in the image'
+            if ocr_text is None or not ocr_text.strip()
+            else '\n' + ocr_text
+        )
 
     @prompts(name="Recognize All Optical Characters",
              description="useful when you want to recognize all characters or words in the image. "
@@ -965,11 +962,7 @@ class ImageOCRRecognition:
         return res_text
     
     def parse_result(self, result):
-        res_text = []
-        for item in result:
-            # ([[x, y], [x, y], [x, y], [x, y]], text, confidence)
-            res_text.append(item[1])
-        return res_text
+        return [item[1] for item in result]
     
     def readtext(self, img_path):
         return self.reader.readtext(img_path)
@@ -1042,7 +1035,7 @@ class MaskedVisualQuestionAnswering:
     def __init__(self, VisualQuestionAnswering, SegmentAnything):
         self.VisualQuestionAnswering = VisualQuestionAnswering
         self.SegmentAnything = SegmentAnything
-        print(f"Initializing MaskedVisualQuestionAnswering")
+        print("Initializing MaskedVisualQuestionAnswering")
 
     @prompts(name="Answer Question About The Masked Image",
              description="useful when you need an answer for a question based on a masked image. "

@@ -24,19 +24,16 @@ WINDOW_NAME = "GRiT"
 def dense_pred_to_caption(predictions):
     boxes = predictions["instances"].pred_boxes if predictions["instances"].has("pred_boxes") else None
     object_description = predictions["instances"].pred_object_descriptions.data
-    new_caption = ""
-    for i in range(len(object_description)):
-        new_caption += (object_description[i] + ": " + str([int(a) for a in boxes[i].tensor.cpu().detach().numpy()[0]])) + "; "
-    return new_caption
+    return "".join(
+        f"{object_description[i]}: {[int(a) for a in boxes[i].tensor.cpu().detach().numpy()[0]]}; "
+        for i in range(len(object_description))
+    )
 
 def dense_pred_to_caption_only_name(predictions):
     # boxes = predictions["instances"].pred_boxes if predictions["instances"].has("pred_boxes") else None
     object_description = predictions["instances"].pred_object_descriptions.data
-    new_caption = ",".join(object_description)
     del predictions
-    # for i in range(len(object_description)):
-    #     new_caption += (object_description[i] + ": " + str([int(a) for a in boxes[i].tensor.cpu().detach().numpy()[0]])) + "; "
-    return new_caption
+    return ",".join(object_description)
 
 def setup_cfg(args):
     cfg = get_cfg()
@@ -60,8 +57,13 @@ def setup_cfg(args):
     return cfg
 
 def get_parser(device):
-    arg_dict = {'config_file': "iGPT/models/grit_src/configs/GRiT_B_DenseCap_ObjectDet.yaml", 'device': device, 'confidence_threshold': 0.5, 'test_task': 'DenseCap', 'opts': ["MODEL.WEIGHTS", "model_zoo/grit_b_densecap_objectdet.pth"]}
-    return arg_dict
+    return {
+        'config_file': "iGPT/models/grit_src/configs/GRiT_B_DenseCap_ObjectDet.yaml",
+        'device': device,
+        'confidence_threshold': 0.5,
+        'test_task': 'DenseCap',
+        'opts': ["MODEL.WEIGHTS", "model_zoo/grit_b_densecap_objectdet.pth"],
+    }
 
 def image_caption_api(image_src, device):
     args2 = get_parser(device)
@@ -76,8 +78,7 @@ def image_caption_api(image_src, device):
 def init_demo(device):
     args2 = get_parser(device)
     cfg = setup_cfg(args2)
-    demo = VisualizationDemo(cfg)
-    return demo
+    return VisualizationDemo(cfg)
 
 if __name__=="__main__":
     import os

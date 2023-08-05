@@ -80,13 +80,9 @@ class VideoCaption:
         data = self.load_video(video_path)
         if self.e_mode:
             self.model.to(device=self.device)
-        # progress(0.2, desc="Loading Videos")
-        tmp = []
-        for _, img in enumerate(data):
-            tmp.append(self.transform(img).to(self.device).unsqueeze(0))
-
+        tmp = [self.transform(img).to(self.device).unsqueeze(0) for img in data]
         # Video Caption
-        image = torch.cat(tmp).to(self.device)    
+        image = torch.cat(tmp).to(self.device)
         # self.threshold = 0.68
 
         input_tag_list = None
@@ -123,8 +119,7 @@ class Summarization:
                          "representing the video_path")
     def inference(self, inputs):
         caption = inputs.strip()
-        sum_res = self.model.predict(caption)
-        return sum_res
+        return self.model.predict(caption)
 
 
 class ActionRecognition:
@@ -149,7 +144,7 @@ class ActionRecognition:
     def inference(self, inputs):
         if self.e_mode:
             self.model.to(self.device)
-        
+
         video_path = inputs.strip()
         # if self.video_path == video_path:
         #     return self.result
@@ -159,10 +154,7 @@ class ActionRecognition:
 
         # InternVideo
         action_index = np.linspace(0, len(data)-1, 8).astype(int)
-        tmp_pred = []
-        for i,img in enumerate(data):
-            if i in action_index:
-                tmp_pred.append(self.toPIL(img))
+        tmp_pred = [self.toPIL(img) for i, img in enumerate(data) if i in action_index]
         action_tensor = self.transform(tmp_pred)
         TC, H, W = action_tensor.shape
         action_tensor = action_tensor.reshape(1, TC//3, 3, H, W).permute(0, 2, 1, 3, 4).to(self.device)
@@ -173,7 +165,7 @@ class ActionRecognition:
         # self.result = prediction
         if self.e_mode:
             self.model.to("cpu")
-        
+
         return prediction
 
 
@@ -199,8 +191,10 @@ class DenseCaption:
         dense_index = np.arange(0, len(data)-1, 5)
         original_images = data[dense_index,:,:,::-1]
         with torch.no_grad():
-            for original_image in original_images:
-                dense_caption.append(self.model.run_caption_tensor(original_image))
+            dense_caption.extend(
+                self.model.run_caption_tensor(original_image)
+                for original_image in original_images
+            )
             dense_caption = ' '.join([f"Second {i+1} : {j}.\n" for i,j in zip(dense_index,dense_caption)])
 
         return dense_caption
@@ -223,7 +217,7 @@ class GenerateTikTokVideo:
     def inference(self, inputs):
         video_path = inputs.split(',')[0].strip()
         text = ', '.join(inputs.split(',')[1: ])
-        if self.SimpleLanguageModel == None:
+        if self.SimpleLanguageModel is None:
             self.SimpleLanguageModel = SimpleLanguageModel()
         action_classes = self.ActionRecognition.inference(video_path)
         print(f'action_classes = {action_classes}')
@@ -246,11 +240,11 @@ class GenerateTikTokVideo:
         start_time, end_time = min(timestamp), max(timestamp)
         print(f'start_time, end_time = = {start_time}, {end_time}')
         video_during = end_time - start_time + 1
-        
-        
+
+
         # prompt=f"忘记之前的回答模板，请使用中文回答这个问题。如果情节里遇到男生就叫小帅，女生就叫小美，请以’注意看，这个人叫’开始写一段的视频营销文案。尽量根据第{start_time}秒到第{end_time}秒左右的视频内容生成文案，不要生成重复句子。"
         # prompt=f"忘记之前的回答模板，请使用中文回答这个问题。如果情节里遇到男生就叫小帅，女生就叫小美，请以’注意看，这个人叫’为开头，根据第{start_time}秒到第{end_time}秒左右的视频内容生成一段视频营销文案。"
-        prompt=f"忘记之前的回答模板，请使用中文回答这个问题。视频里如果出现男生就叫小帅，出现女生就叫小美，如果不确定性别，就叫大聪明。请以’注意看，这个人叫’为开头生成一段视频营销文案。"
+        prompt = "忘记之前的回答模板，请使用中文回答这个问题。视频里如果出现男生就叫小帅，出现女生就叫小美，如果不确定性别，就叫大聪明。请以’注意看，这个人叫’为开头生成一段视频营销文案。"
         texts = self.run_text_with_tiktok(video_prompt, prompt).strip()
         # if texts.endswith('')
         texts += '。'
@@ -296,12 +290,14 @@ class GenerateTikTokVideo:
                   You must find the text-related start time \
                   and end time based on video caption. Your answer \
                   must end with the format {answer} [start time: end time]."
-        response = self.SimpleLanguageModel(f"Video content: {video_caption}. Text: {text.strip()}." + prompt)
+        response = self.SimpleLanguageModel(
+            f"Video content: {video_caption}. Text: {text.strip()}.{prompt}"
+        )
         # res['output'] = res['output'].replace("\\", "/")
         # print(response)
         import re
         pattern = r"\d+"
-        # response = res['output']#rsplit(']')[-1] 
+        # response = res['output']#rsplit(']')[-1]
         try:
             # matches = re.findall(pattern, res['output'])
             matches = re.findall(pattern, response)
@@ -309,8 +305,6 @@ class GenerateTikTokVideo:
             start_idx , end_idx = int(start_idx), int(end_idx)
         except:
             return None
-            import pdb
-            pdb.set_trace()
         # state = state + [(text, response)]
         print(f"\nProcessed run_text_with_time, Input text: {text}\n")
         return (start_idx, end_idx)
@@ -352,5 +346,5 @@ if __name__ == '__main__':
                                 VideoCaption(device), 
                                 DenseCaption(device)
             )
-    out = model.inference(video_path+",帮我剪辑出最精彩的片段")
+    out = model.inference(f"{video_path},帮我剪辑出最精彩的片段")
     print(out)

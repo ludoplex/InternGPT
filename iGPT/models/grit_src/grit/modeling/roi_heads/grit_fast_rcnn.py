@@ -40,8 +40,7 @@ class GRiTFastRCNNOutputLayers(FastRCNNOutputLayers):
 
     @classmethod
     def from_config(cls, cfg, input_shape):
-        ret = super().from_config(cfg, input_shape)
-        return ret
+        return super().from_config(cfg, input_shape)
 
     def losses(self, predictions, proposals):
         scores, proposal_deltas = predictions
@@ -73,9 +72,7 @@ class GRiTFastRCNNOutputLayers(FastRCNNOutputLayers):
         if pred_class_logits.numel() == 0:
             return pred_class_logits.new_zeros([1])[0]
 
-        loss = F.cross_entropy(
-            pred_class_logits, gt_classes, reduction="mean")
-        return loss
+        return F.cross_entropy(pred_class_logits, gt_classes, reduction="mean")
 
     def box_reg_loss(
         self, proposal_boxes, gt_boxes, pred_deltas, gt_classes, 
@@ -116,10 +113,8 @@ class GRiTFastRCNNOutputLayers(FastRCNNOutputLayers):
     def forward(self, x):
         if x.dim() > 2:
             x = torch.flatten(x, start_dim=1)
-        scores = []
-
         cls_scores = self.cls_score(x)
-        scores.append(cls_scores)
+        scores = [cls_scores]
         scores = torch.cat(scores, dim=1)
 
         proposal_deltas = self.bbox_pred(x)

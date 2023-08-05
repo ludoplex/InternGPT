@@ -28,7 +28,7 @@ class GRiTCOCOEvaluator(COCOEvaluator):
 
         if self._output_dir:
             file_path = os.path.join(self._output_dir, "coco_instances_results.json")
-            self._logger.info("Saving results to {}".format(file_path))
+            self._logger.info(f"Saving results to {file_path}")
             with PathManager.open(file_path, "w") as f:
                 f.write(json.dumps(coco_results))
                 f.flush()
@@ -38,9 +38,7 @@ class GRiTCOCOEvaluator(COCOEvaluator):
             return
 
         self._logger.info(
-            "Evaluating predictions with {} COCO API...".format(
-                "unofficial" if self._use_fast_impl else "official"
-            )
+            f'Evaluating predictions with {"unofficial" if self._use_fast_impl else "official"} COCO API...'
         )
 
         coco_results = self.convert_classname_to_id(coco_results)
@@ -68,12 +66,9 @@ class GRiTCOCOEvaluator(COCOEvaluator):
 
     def convert_classname_to_id(self, results):
         outputs = []
-        class_name_to_id = {}
         categories = sorted(self._coco_api.dataset['categories'], key=lambda x: x['id'])
 
-        for cat in categories:
-            class_name_to_id[cat['name']] = cat['id']
-
+        class_name_to_id = {cat['name']: cat['id'] for cat in categories}
         for pred in results:
             if pred['object_descriptions'] in class_name_to_id:
                 pred['category_id'] = class_name_to_id[pred['object_descriptions']]
@@ -102,7 +97,7 @@ class GRiTVGEvaluator(COCOEvaluator):
                     inst['bbox'][2] = inst['bbox'][2] * scale
                     inst['bbox'][3] = inst['bbox'][3] * scale
                     scaled_inst.append(inst)
-                if len(scaled_inst) > 0:
+                if scaled_inst:
                     prediction["instances"] = scaled_inst
             if len(prediction) > 1:
                 self._predictions.append(prediction)
@@ -116,7 +111,7 @@ class GRiTVGEvaluator(COCOEvaluator):
 
         if self._output_dir:
             file_path = os.path.join(self._output_dir, "vg_instances_results.json")
-            self._logger.info("Saving results to {}".format(file_path))
+            self._logger.info(f"Saving results to {file_path}")
             with PathManager.open(file_path, "w") as f:
                 f.write(json.dumps(coco_results))
                 f.flush()

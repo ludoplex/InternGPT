@@ -50,15 +50,13 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
         self.tokenizer = tokenizer
 
-        assert test_task in train_task, 'GRiT has not been trained on {} task, ' \
-                                        'please verify the task name or train a new ' \
-                                        'GRiT on {} task'.format(test_task, test_task)
-        task_begin_tokens = {}
-        for i, task in enumerate(train_task):
-            if i == 0:
-                task_begin_tokens[task] = tokenizer.cls_token_id
-            else:
-                task_begin_tokens[task] = 103 + i
+        assert (
+            test_task in train_task
+        ), f'GRiT has not been trained on {test_task} task, please verify the task name or train a new GRiT on {test_task} task'
+        task_begin_tokens = {
+            task: tokenizer.cls_token_id if i == 0 else 103 + i
+            for i, task in enumerate(train_task)
+        }
         self.task_begin_tokens = task_begin_tokens
 
         beamsearch_decode = AutoRegressiveBeamSearch(
@@ -104,18 +102,20 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
         return ret
 
     @classmethod
-    def _init_box_head(self, cfg, input_shape):
+    def _init_box_head(cls, cfg, input_shape):
         ret = super()._init_box_head(cfg, input_shape)
         del ret['box_predictors']
         cascade_bbox_reg_weights = cfg.MODEL.ROI_BOX_CASCADE_HEAD.BBOX_REG_WEIGHTS
-        box_predictors = []
-        for box_head, bbox_reg_weights in zip(ret['box_heads'], \
-            cascade_bbox_reg_weights):
-            box_predictors.append(
-                GRiTFastRCNNOutputLayers(
-                    cfg, box_head.output_shape,
-                    box2box_transform=Box2BoxTransform(weights=bbox_reg_weights)
-                ))
+        box_predictors = [
+            GRiTFastRCNNOutputLayers(
+                cfg,
+                box_head.output_shape,
+                box2box_transform=Box2BoxTransform(weights=bbox_reg_weights),
+            )
+            for box_head, bbox_reg_weights in zip(
+                ret['box_heads'], cascade_bbox_reg_weights
+            )
+        ]
         ret['box_predictors'] = box_predictors
 
         in_features              = cfg.MODEL.ROI_HEADS.IN_FEATURES
@@ -138,7 +138,7 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
                 all_background = False
 
         if all_background:
-            logger.info('all proposals are background at stage {}'.format(stage))
+            logger.info(f'all proposals are background at stage {stage}')
             proposals[0].proposal_boxes.tensor[0, :] = targets[0].gt_boxes.tensor[0, :]
             proposals[0].gt_boxes.tensor[0, :] = targets[0].gt_boxes.tensor[0, :]
             proposals[0].objectness_logits[0] = math.log((1.0 - 1e-10) / (1 - (1.0 - 1e-10)))
@@ -202,12 +202,12 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
             storage = get_event_storage()
             # RoI Head losses (For the proposal generator loss, please find it in grit.py)
             for stage, (predictor, predictions, proposals) in enumerate(head_outputs):
-                with storage.name_scope("stage{}".format(stage)):
-                        stage_losses = predictor.losses(
-                            (predictions[0], predictions[1]), proposals)
-                losses.update({k + "_stage{}".format(stage): v for k, v in stage_losses.items()})
+                with storage.name_scope(f"stage{stage}"):
+                    stage_losses = predictor.losses(
+                        (predictions[0], predictions[1]), proposals)
+                losses |= {f"{k}_stage{stage}": v for k, v in stage_losses.items()}
             # Text Decoder loss
-            losses.update({'text_decoder_loss': text_decoder_loss})
+            losses['text_decoder_loss'] = text_decoder_loss
             return losses
         else:
             scores_per_stage = [h[0].predict_probs(h[1], h[2]) for h in head_outputs]
@@ -244,12 +244,12 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
                     object_features = object_features.view(
                         object_features.shape[0], object_features.shape[1], -1).permute(0, 2, 1).contiguous()
                     text_decoder_output = self.text_decoder({'object_features': object_features})
+                    pred_object_descriptions = []
+
                     if self.beam_size > 1 and self.test_task == "ObjectDet":
                         pred_boxes = []
                         pred_scores = []
                         pred_classes = []
-                        pred_object_descriptions = []
-
                         for beam_id in range(self.beam_size):
                             pred_boxes.append(pred_instance.pred_boxes.tensor)
                             # object score = sqrt(objectness score x description score)
@@ -274,7 +274,7 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
                             merged_instances.pred_boxes = Boxes(torch.cat(pred_boxes, dim=0)[top_idx, :])
                             merged_instances.pred_classes = torch.cat(pred_classes, dim=0)[top_idx]
                             merged_instances.pred_object_descriptions = \
-                                ObjDescription(ObjDescription(pred_object_descriptions)[top_idx].data)
+                                    ObjDescription(ObjDescription(pred_object_descriptions)[top_idx].data)
 
                         pred_instances[i] = merged_instances
                     else:
@@ -282,7 +282,6 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
                         pred_instance.scores = (pred_instance.scores *
                                                 torch.exp(text_decoder_output['logprobs'])) ** 0.5
 
-                        pred_object_descriptions = []
                         for prediction in text_decoder_output['predictions']:
                             # convert text tokens to words
                             description = self.tokenizer.decode(prediction.tolist()[1:], skip_special_tokens=True)
@@ -338,7 +337,9 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
                 gt_boxes = Boxes(
                     targets_per_image.gt_boxes.tensor.new_zeros((len(proposals_per_image), 4))
                 )
-                gt_object_descriptions = ObjDescription(['None' for i in range(len(proposals_per_image))])
+                gt_object_descriptions = ObjDescription(
+                    ['None' for _ in range(len(proposals_per_image))]
+                )
             proposals_per_image.gt_classes = gt_classes
             proposals_per_image.gt_boxes = gt_boxes
             proposals_per_image.gt_object_descriptions = gt_object_descriptions
@@ -350,13 +351,13 @@ class GRiTROIHeadsAndTextDecoder(CascadeROIHeads):
         # Log the number of fg/bg samples in each stage
         storage = get_event_storage()
         storage.put_scalar(
-            "stage{}/roi_head/num_fg_samples".format(stage),
+            f"stage{stage}/roi_head/num_fg_samples",
             sum(num_fg_samples) / len(num_fg_samples),
-            )
+        )
         storage.put_scalar(
-            "stage{}/roi_head/num_bg_samples".format(stage),
+            f"stage{stage}/roi_head/num_bg_samples",
             sum(num_bg_samples) / len(num_bg_samples),
-            )
+        )
         return proposals
 
     def fast_rcnn_inference_GRiT(

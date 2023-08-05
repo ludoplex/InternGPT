@@ -53,7 +53,7 @@ def _custom_train_loader_from_config(cfg, mapper=None, *, dataset=None, sampler=
             dataset_ratio=cfg.DATALOADER.DATASET_RATIO,
         )
     else:
-        raise ValueError("Unknown training sampler: {}".format(sampler_name))
+        raise ValueError(f"Unknown training sampler: {sampler_name}")
 
     return {
         "dataset": dataset_dicts,
@@ -100,9 +100,7 @@ def build_dataset_batch_data_loader(
     world_size = get_world_size()
     assert (
         total_batch_size > 0 and total_batch_size % world_size == 0
-    ), "Total batch size ({}) must be divisible by the number of gpus ({}).".format(
-        total_batch_size, world_size
-    )
+    ), f"Total batch size ({total_batch_size}) must be divisible by the number of gpus ({world_size})."
 
     data_loader = torch.utils.data.DataLoader(
         dataset,
@@ -125,11 +123,10 @@ def get_detection_dataset_dicts_with_source(
     assert len(dataset_names)
     dataset_dicts = [DatasetCatalog.get(dataset_name) for dataset_name in dataset_names]
     for dataset_name, dicts in zip(dataset_names, dataset_dicts):
-        assert len(dicts), "Dataset '{}' is empty!".format(dataset_name)
-    
-    for source_id, (dataset_name, dicts) in \
-        enumerate(zip(dataset_names, dataset_dicts)):
-        assert len(dicts), "Dataset '{}' is empty!".format(dataset_name)
+        assert len(dicts), f"Dataset '{dataset_name}' is empty!"
+
+    for source_id, (dataset_name, dicts) in enumerate(zip(dataset_names, dataset_dicts)):
+        assert len(dicts), f"Dataset '{dataset_name}' is empty!"
         for d in dicts:
             d['dataset_source'] = source_id
 
@@ -166,22 +163,23 @@ class MultiDatasetSampler(Sampler):
             sizes[d['dataset_source']] += 1
         print('dataset sizes', sizes)
         self.sizes = sizes
-        assert len(dataset_ratio) == len(sizes), \
-            'length of dataset ratio {} should be equal to number if dataset {}'.format(
-                len(dataset_ratio), len(sizes)
-            )
+        assert len(dataset_ratio) == len(
+            sizes
+        ), f'length of dataset ratio {len(dataset_ratio)} should be equal to number if dataset {len(sizes)}'
         if seed is None:
             seed = comm.shared_random_seed()
         self._seed = int(seed)
         self._rank = comm.get_rank()
         self._world_size = comm.get_world_size()
-        
+
         self.dataset_ids = torch.tensor(
             [d['dataset_source'] for d in dataset_dicts], dtype=torch.long)
         self.dataset_ratio = dataset_ratio
 
-        dataset_weight = [torch.ones(s) * max(sizes) / s * r / sum(dataset_ratio) \
-            for i, (r, s) in enumerate(zip(dataset_ratio, sizes))]
+        dataset_weight = [
+            torch.ones(s) * max(sizes) / s * r / sum(dataset_ratio)
+            for r, s in zip(dataset_ratio, sizes)
+        ]
         dataset_weight = torch.cat(dataset_weight)
 
         self.weights = dataset_weight

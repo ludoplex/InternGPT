@@ -41,7 +41,7 @@ class WarmupParamScheduler(CompositeParamScheduler):
         elif warmup_method == "linear":
             warmup = LinearParamScheduler(start_value, end_value)
         else:
-            raise ValueError("Unknown warmup method: {}".format(warmup_method))
+            raise ValueError(f"Unknown warmup method: {warmup_method}")
         super().__init__(
             [warmup, scheduler],
             interval_scaling=["rescaled", "fixed"],
@@ -143,7 +143,7 @@ class WarmupMultiStepLR(torch.optim.lr_scheduler._LRScheduler):
         logger.warning(
             "WarmupMultiStepLR is deprecated! Use LRMultipilier with fvcore ParamScheduler instead!"
         )
-        if not list(milestones) == sorted(milestones):
+        if list(milestones) != sorted(milestones):
             raise ValueError(
                 "Milestones should be a list of" " increasing integers. Got {}", milestones
             )
@@ -235,4 +235,4 @@ def _get_warmup_factor_at_iter(
         alpha = iter / warmup_iters
         return warmup_factor * (1 - alpha) + alpha
     else:
-        raise ValueError("Unknown warmup method: {}".format(method))
+        raise ValueError(f"Unknown warmup method: {method}")

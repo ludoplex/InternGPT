@@ -23,10 +23,9 @@ class Intern_Action(nn.Module):
 def get_index(num_frames, num_segments=8):
     seg_size = float(num_frames - 1) / num_segments
     start = int(seg_size / 2)
-    offsets = np.array([
-        start + int(np.round(seg_size * idx)) for idx in range(num_segments)
-    ])
-    return offsets
+    return np.array(
+        [start + int(np.round(seg_size * idx)) for idx in range(num_segments)]
+    )
 
 def transform_action():
     # transform
@@ -35,21 +34,18 @@ def transform_action():
     input_mean = [0.485, 0.456, 0.406]
     input_std = [0.229, 0.224, 0.225]
 
-    return T.Compose([
-        # T.ToPILImage(),
-        GroupScale(int(scale_size)),
-        GroupCenterCrop(crop_size),
-        Stack(),
-        ToTorchFormatTensor(),
-        GroupNormalize(input_mean, input_std) 
-    ])
+    return T.Compose(
+        [
+            GroupScale(scale_size),
+            GroupCenterCrop(crop_size),
+            Stack(),
+            ToTorchFormatTensor(),
+            GroupNormalize(input_mean, input_std),
+        ]
+    )
 
 def load_intern_action():
-    # Create an id to label name mapping
-    kinetics_id_to_classname = {}
-    for k, v in kinetics_classnames.items():
-        kinetics_id_to_classname[k] = v
-
+    kinetics_id_to_classname = dict(kinetics_classnames.items())
     model_path = hf_hub_download(repo_id="Andy1621/uniformerv2", filename="k400+k710_uniformerv2_b16_8x224.pyth")
     # Pick a pretrained model 
     model = Intern_Action(intern_action_b16(pretrained=False, t_size=8, no_lmhra=True, temporal_downsample=False))

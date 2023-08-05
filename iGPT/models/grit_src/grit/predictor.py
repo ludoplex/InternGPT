@@ -27,8 +27,7 @@ class BatchDefaultPredictor(DefaultPredictor):
 
                 inputs = {"image": image, "height": height, "width": width}
                 batch_inputs.append(inputs)
-            predictions = self.model(batch_inputs)[0]
-            return predictions
+            return self.model(batch_inputs)[0]
 
 class Visualizer_GRiT(Visualizer):
     def __init__(self, image, instance_mode=None):

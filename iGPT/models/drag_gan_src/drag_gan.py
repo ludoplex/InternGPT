@@ -62,13 +62,10 @@ class CustomGenerator(Generator):
                 ]
 
         if truncation < 1:
-            style_t = []
-
-            for style in styles:
-                style_t.append(
-                    truncation_latent + truncation * (style - truncation_latent)
-                )
-
+            style_t = [
+                truncation_latent + truncation * (style - truncation_latent)
+                for style in styles
+            ]
             styles = style_t
 
         if len(styles) < 2:

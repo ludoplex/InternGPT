@@ -369,11 +369,7 @@ class AutoRegressiveBeamSearch(object):
         self.per_node_beam_size = per_node_beam_size or beam_size
 
     def search(self, begin_tokens, step):
-        if self.beam_size > 1 and self.objectdet:
-            only_return_best = False
-        else:
-            only_return_best = True
-
+        only_return_best = self.beam_size <= 1 or not self.objectdet
         batch_size = begin_tokens.size()[0]
 
         predictions = begin_tokens.unsqueeze(1).expand((batch_size, self.beam_size, begin_tokens.shape[-1]))
@@ -611,12 +607,10 @@ class GRiTTextDecoder(nn.Module):
             begin_tokens, decoding_step
         )
 
-        output_dict = {
+        return {
             'predictions': object_description_tokens,
             'logprobs': logprobs,
         }
-
-        return output_dict
 
     def decoding_step(self, object_features, partial_text):
         batch_size = object_features.shape[0]

@@ -180,7 +180,7 @@ def get_lvis_instances_meta(dataset_name):
         return _get_lvis_instances_meta_v0_5()
     elif "v1" in dataset_name:
         return _get_lvis_instances_meta_v1()
-    raise ValueError("No built-in metadata for dataset {}".format(dataset_name))
+    raise ValueError(f"No built-in metadata for dataset {dataset_name}")
 
 
 def _get_lvis_instances_meta_v0_5():
@@ -192,8 +192,7 @@ def _get_lvis_instances_meta_v0_5():
     # Ensure that the category list is sorted by id
     lvis_categories = sorted(LVIS_V0_5_CATEGORIES, key=lambda x: x["id"])
     thing_classes = [k["synonyms"][0] for k in lvis_categories]
-    meta = {"thing_classes": thing_classes}
-    return meta
+    return {"thing_classes": thing_classes}
 
 
 def _get_lvis_instances_meta_v1():
@@ -205,8 +204,7 @@ def _get_lvis_instances_meta_v1():
     # Ensure that the category list is sorted by id
     lvis_categories = sorted(LVIS_V1_CATEGORIES, key=lambda x: x["id"])
     thing_classes = [k["synonyms"][0] for k in lvis_categories]
-    meta = {"thing_classes": thing_classes}
-    return meta
+    return {"thing_classes": thing_classes}
 
 
 if __name__ == "__main__":
@@ -228,7 +226,7 @@ if __name__ == "__main__":
     meta = MetadataCatalog.get(sys.argv[3])
 
     dicts = load_lvis_json(sys.argv[1], sys.argv[2], sys.argv[3])
-    logger.info("Done loading {} samples.".format(len(dicts)))
+    logger.info(f"Done loading {len(dicts)} samples.")
 
     dirname = "lvis-data-vis"
     os.makedirs(dirname, exist_ok=True)

@@ -329,7 +329,7 @@ class EventStorage:
         if existing_hint is not None:
             assert (
                 existing_hint == smoothing_hint
-            ), "Scalar {} was put with a different smoothing_hint!".format(name)
+            ), f"Scalar {name} was put with a different smoothing_hint!"
         else:
             self._smoothing_hints[name] = smoothing_hint
 
@@ -381,7 +381,7 @@ class EventStorage:
         """
         ret = self._history.get(name, None)
         if ret is None:
-            raise KeyError("No history metric available for {}!".format(name))
+            raise KeyError(f"No history metric available for {name}!")
         return ret
 
     def histories(self):
@@ -408,13 +408,15 @@ class EventStorage:
 
         This provides a default behavior that other writers can use.
         """
-        result = {}
-        for k, (v, itr) in self._latest_scalars.items():
-            result[k] = (
-                self._history[k].median(window_size) if self._smoothing_hints[k] else v,
+        return {
+            k: (
+                self._history[k].median(window_size)
+                if self._smoothing_hints[k]
+                else v,
                 itr,
             )
-        return result
+            for k, (v, itr) in self._latest_scalars.items()
+        }
 
     def smoothing_hints(self):
         """

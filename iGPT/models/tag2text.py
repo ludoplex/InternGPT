@@ -126,7 +126,7 @@ class Tag2Text_Caption(nn.Module):
         image_atts = torch.ones(image_embeds.size()[:-1],dtype=torch.long).to(image.device)
 
         #==============generate tag==============#
-        if tag_input == None:
+        if tag_input is None:
             image_spatial_embeds = image_embeds[:,1:,:]
             image_cls_embeds = image_embeds[:,0,:]
 
@@ -140,7 +140,7 @@ class Tag2Text_Caption(nn.Module):
                                 )  
 
             logits = self.fc(mlr_tagembedding[0])
-            
+
             # targets = torch.where(torch.sigmoid(logits) > self.threshold , torch.tensor(1.0).to(image.device), torch.zeros(self.num_class).to(image.device))
             targets = torch.where(torch.sigmoid(logits) > self.class_threshold.to(image.device) , torch.tensor(1.0).to(image.device), torch.zeros(self.num_class).to(image.device))
 
@@ -151,21 +151,20 @@ class Tag2Text_Caption(nn.Module):
             for b in range(bs):
                 index = np.argwhere(tag[b] == 1)
                 token = self.tag_array[index].squeeze(axis = 1)
-                tag_input.append(' | '.join(token))            
+                tag_input.append(' | '.join(token))
         #========================================#
-        
+
         if not sample:
             image_embeds = image_embeds.repeat_interleave(num_beams,dim=0)
             image_atts = image_atts.repeat_interleave(num_beams,dim=0)
             tag_input_temp = []
             for tag in tag_input:
-                for i in range(num_beams):
-                    tag_input_temp.append(tag)
+                tag_input_temp.extend(tag for _ in range(num_beams))
             tag_input = tag_input_temp
 
 
         tag_input_tokenzier = self.tokenizer(tag_input, padding='max_length', truncation=True, max_length=40, 
-                              return_tensors="pt").to(image.device)  
+                              return_tensors="pt").to(image.device)
         encoder_input_ids = tag_input_tokenzier.input_ids
         encoder_input_ids[:,0] = self.tokenizer.enc_token_id
 
@@ -175,15 +174,15 @@ class Tag2Text_Caption(nn.Module):
                                        encoder_attention_mask = image_atts,      
                                        return_dict = True,
                                       )  
-        
+
         prompt = [self.prompt] * image.size(0)
-        input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(image.device) 
+        input_ids = self.tokenizer(prompt, return_tensors="pt").input_ids.to(image.device)
         input_ids[:,0] = self.tokenizer.bos_token_id
         input_ids = input_ids[:, :-1] 
 
+        #nucleus sampling
+        model_kwargs = {"encoder_hidden_states": output_tagembedding.last_hidden_state, "encoder_attention_mask":None}
         if sample:
-            #nucleus sampling
-            model_kwargs = {"encoder_hidden_states": output_tagembedding.last_hidden_state, "encoder_attention_mask":None}
             outputs = self.text_decoder.generate(input_ids=input_ids,
                                                 max_length=max_length,
                                                 min_length=min_length,
@@ -195,8 +194,6 @@ class Tag2Text_Caption(nn.Module):
                                                 repetition_penalty=1.1,                                            
                                                 **model_kwargs)
         else:
-            #beam search
-            model_kwargs = {"encoder_hidden_states": output_tagembedding.last_hidden_state, "encoder_attention_mask":None}
             outputs = self.text_decoder.generate(input_ids=input_ids,
                                                 max_length=max_length,
                                                 min_length=min_length,
@@ -205,8 +202,8 @@ class Tag2Text_Caption(nn.Module):
                                                 pad_token_id=self.tokenizer.pad_token_id,     
                                                 repetition_penalty=repetition_penalty,
                                                 **model_kwargs)            
-            
-        captions = []    
+
+        captions = []
         for output in outputs:
             caption = self.tokenizer.decode(output, skip_special_tokens=True)    
             captions.append(caption[len(self.prompt):])
@@ -214,7 +211,7 @@ class Tag2Text_Caption(nn.Module):
             if sample:
                 return captions, tag_input
             else:
-                return captions, tag_input[0:int(len(tag_input)/num_beams)]            
+                return captions, tag_input[:int(len(tag_input)/num_beams)]
         return captions
 
 
@@ -239,13 +236,13 @@ def tie_encoder_decoder_weights(encoder: nn.Module, decoder: nn.Module, base_mod
         )
 
     def tie_encoder_to_decoder_recursively(
-        decoder_pointer: nn.Module,
-        encoder_pointer: nn.Module,
-        module_name: str,
-        uninitialized_encoder_weights: List[str],
-        skip_key: str,
-        depth=0,
-    ):
+            decoder_pointer: nn.Module,
+            encoder_pointer: nn.Module,
+            module_name: str,
+            uninitialized_encoder_weights: List[str],
+            skip_key: str,
+            depth=0,
+        ):
         assert isinstance(decoder_pointer, nn.Module) and isinstance(
             encoder_pointer, nn.Module
         ), f"{decoder_pointer} and {encoder_pointer} have to be of type torch.nn.Module"
@@ -265,7 +262,10 @@ def tie_encoder_decoder_weights(encoder: nn.Module, decoder: nn.Module, base_mod
                 len(encoder_modules) > 0
             ), f"Encoder module {encoder_pointer} does not match decoder module {decoder_pointer}"
 
-            all_encoder_weights = set([module_name + "/" + sub_name for sub_name in encoder_modules.keys()])
+            all_encoder_weights = {
+                f"{module_name}/{sub_name}"
+                for sub_name in encoder_modules.keys()
+            }
             encoder_layer_pos = 0
             for name, module in decoder_modules.items():
                 if name.isdigit():
@@ -290,12 +290,12 @@ def tie_encoder_decoder_weights(encoder: nn.Module, decoder: nn.Module, base_mod
                 tie_encoder_to_decoder_recursively(
                     decoder_modules[decoder_name],
                     encoder_modules[encoder_name],
-                    module_name + "/" + name,
+                    f"{module_name}/{name}",
                     uninitialized_encoder_weights,
                     skip_key,
                     depth=depth + 1,
                 )
-                all_encoder_weights.remove(module_name + "/" + encoder_name)
+                all_encoder_weights.remove(f"{module_name}/{encoder_name}")
 
             uninitialized_encoder_weights += list(all_encoder_weights)
 
@@ -371,20 +371,20 @@ def load_checkpoint(model,url_or_filename):
         checkpoint = torch.load(url_or_filename, map_location='cpu') 
     else:
         raise RuntimeError('checkpoint url or path is invalid')
-        
+
     state_dict = checkpoint['model']
-    
-    state_dict['visual_encoder.pos_embed'] = interpolate_pos_embed(state_dict['visual_encoder.pos_embed'],model.visual_encoder) 
+
+    state_dict['visual_encoder.pos_embed'] = interpolate_pos_embed(state_dict['visual_encoder.pos_embed'],model.visual_encoder)
     if 'visual_encoder_m.pos_embed' in model.state_dict().keys():
         state_dict['visual_encoder_m.pos_embed'] = interpolate_pos_embed(state_dict['visual_encoder_m.pos_embed'],
-                                                                         model.visual_encoder_m)    
+                                                                         model.visual_encoder_m)
     for key in model.state_dict().keys():
         if key in state_dict.keys():
             if state_dict[key].shape!=model.state_dict()[key].shape:
                 del state_dict[key]
-    
+
     msg = model.load_state_dict(state_dict,strict=False)
-    print('load checkpoint from %s'%url_or_filename)  
+    print(f'load checkpoint from {url_or_filename}')
     return model,msg
     
 
@@ -410,7 +410,7 @@ def load_checkpoint_swinbase(model,url_or_filename,kwargs):
         checkpoint = torch.load(url_or_filename, map_location='cpu') 
     else:
         raise RuntimeError('checkpoint url or path is invalid')
-        
+
     state_dict = checkpoint['model']
 
     for k in list(state_dict.keys()):
@@ -419,9 +419,9 @@ def load_checkpoint_swinbase(model,url_or_filename,kwargs):
             state_dict[k] = interpolate_relative_pos_embed(state_dict[k], dst_num_pos, param_name=k)
         elif ('relative_position_index' in k) or ('attn_mask' in k):
             del state_dict[k]
-    
+
     msg = model.load_state_dict(state_dict,strict=False)
-    print('load checkpoint from %s'%url_or_filename)  
+    print(f'load checkpoint from {url_or_filename}')
     return model,msg
     
 
